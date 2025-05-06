@@ -18,7 +18,18 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+  activemq:
+    broker-url: tcp://localhost:61616
+    user: admin
+    password: admin
+    packages:
+      trust-all: true
 
+workload-service:
+  activemq:
+    workload:
+      queue: gym.workload.queue
+      dlq: gym.workload.dlq
 eureka:
   client:
     serviceUrl:
