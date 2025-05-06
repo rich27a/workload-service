@@ -1,10 +1,8 @@
 package com.example.Workload.Service.service;
 
 import com.example.Workload.Service.advice.TrainerNotFoundException;
-import com.example.Workload.Service.models.ActionType;
-import com.example.Workload.Service.models.TrainerWorkload;
-import com.example.Workload.Service.models.WorkloadRequest;
-import com.example.Workload.Service.models.WorkloadSummary;
+import com.example.Workload.Service.messaging.jms.model.WorkloadMessage;
+import com.example.Workload.Service.models.*;
 import com.example.Workload.Service.repositories.TrainerWorkloadRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +25,7 @@ public class WorkloadService {
             ActionType.DELETE, this::handleDeleteAction
     );
 
-    public void processWorkload(WorkloadRequest request, String transactionId) {
+    public void processWorkload(WorkloadMessage request, String transactionId) {
         log.info("[{}] Processing workload for trainer: {}",
                 transactionId, request.getTrainerUsername());
 
@@ -42,13 +40,13 @@ public class WorkloadService {
                 transactionId, request.getTrainerUsername());
     }
 
-    private void handleAddAction(WorkloadRequest request,
+    private void handleAddAction(WorkloadMessage request,
                                  TrainerWorkload workload,
                                  YearMonth yearMonth) {
         workload.addHours(yearMonth, request.getTrainingDuration());
     }
 
-    private void handleDeleteAction(WorkloadRequest request,
+    private void handleDeleteAction(WorkloadMessage request,
                                     TrainerWorkload workload,
                                     YearMonth yearMonth) {
         workload.removeHours(yearMonth, request.getTrainingDuration());
@@ -70,7 +68,7 @@ public class WorkloadService {
                 .orElseThrow(() -> new TrainerNotFoundException(username));
     }
 
-    private TrainerWorkload getOrCreateWorkload(WorkloadRequest request) {
+    private TrainerWorkload getOrCreateWorkload(WorkloadMessage request) {
         return workloadRepository.findById(request.getTrainerUsername())
                 .orElseGet(() -> {
                     TrainerWorkload newWorkload = new TrainerWorkload();
