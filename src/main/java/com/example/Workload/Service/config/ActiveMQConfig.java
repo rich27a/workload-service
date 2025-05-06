@@ -14,6 +14,9 @@ import org.springframework.jms.support.converter.MappingJackson2MessageConverter
 import org.springframework.jms.support.converter.MessageConverter;
 import org.springframework.jms.support.converter.MessageType;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Configuration
 @EnableJms
 public class ActiveMQConfig {
@@ -53,6 +56,12 @@ public class ActiveMQConfig {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        Map<String, Class<?>> typeIdMappings = new HashMap<>();
+        typeIdMappings.put("com.example.gym.messaging.jms.model.WorkloadMessage",
+                com.example.Workload.Service.messaging.jms.model.WorkloadMessage.class);
+
+        converter.setTypeIdMappings(typeIdMappings);
 
         converter.setObjectMapper(objectMapper);
         return converter;
