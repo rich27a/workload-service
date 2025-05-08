@@ -4,6 +4,8 @@ package com.example.Workload.Service.controllers;
 import com.example.Workload.Service.models.WorkloadRequest;
 import com.example.Workload.Service.models.WorkloadSummary;
 import com.example.Workload.Service.service.WorkloadService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -16,10 +18,13 @@ import java.util.UUID;
 @RequestMapping("/api/workload")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Workload Management", description = "API endpoints for managing and retrieving trainer workload information")
 public class WorkloadController {
 
     private final WorkloadService workloadService;
 
+    @Operation(summary = "Process a new workload request",
+            description = "Receives and processes workload information for a trainer")
     @PostMapping
     public ResponseEntity<?> processWorkload(@RequestBody WorkloadRequest request,
                                              @RequestHeader(value = "X-Transaction-ID", required = false) String transactionId) {
@@ -37,6 +42,8 @@ public class WorkloadController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "Get monthly workload summary",
+            description = "Retrieves the workload summary for a specific trainer for a given month")
     @GetMapping("/{username}/{year}/{month}")
     public ResponseEntity<WorkloadSummary> getWorkloadSummary(
             @PathVariable String username,
