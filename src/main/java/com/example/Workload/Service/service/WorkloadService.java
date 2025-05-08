@@ -25,7 +25,7 @@ public class WorkloadService {
             ActionType.DELETE, this::handleDeleteAction
     );
 
-    public void processWorkload(WorkloadMessage request, String transactionId) {
+    public void processWorkload(WorkloadData request, String transactionId) {
         log.info("[{}] Processing workload for trainer: {}",
                 transactionId, request.getTrainerUsername());
 
@@ -40,13 +40,13 @@ public class WorkloadService {
                 transactionId, request.getTrainerUsername());
     }
 
-    private void handleAddAction(WorkloadMessage request,
+    private void handleAddAction(WorkloadData request,
                                  TrainerWorkload workload,
                                  YearMonth yearMonth) {
         workload.addHours(yearMonth, request.getTrainingDuration());
     }
 
-    private void handleDeleteAction(WorkloadMessage request,
+    private void handleDeleteAction(WorkloadData request,
                                     TrainerWorkload workload,
                                     YearMonth yearMonth) {
         workload.removeHours(yearMonth, request.getTrainingDuration());
@@ -68,7 +68,7 @@ public class WorkloadService {
                 .orElseThrow(() -> new TrainerNotFoundException(username));
     }
 
-    private TrainerWorkload getOrCreateWorkload(WorkloadMessage request) {
+    private TrainerWorkload getOrCreateWorkload(WorkloadData request) {
         return workloadRepository.findById(request.getTrainerUsername())
                 .orElseGet(() -> {
                     TrainerWorkload newWorkload = new TrainerWorkload();
