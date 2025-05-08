@@ -9,5 +9,5 @@ import java.time.YearMonth;
 
 @FunctionalInterface
 interface WorkloadActionHandler {
-    void handle(WorkloadMessage request, TrainerWorkload workload, YearMonth yearMonth);
+    void handle(WorkloadData request, TrainerWorkload workload, YearMonth yearMonth);
 }

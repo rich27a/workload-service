@@ -28,10 +28,11 @@ public class WorkloadController {
         }
 
         log.info("[Transaction: {}] Received workload request for trainer: {}",
-                transactionId, request.getTrainerUsername());
+                transactionId, request.trainerUsername());
+        workloadService.processWorkload(request, transactionId);
 
         log.info("[Transaction: {}] Successfully processed workload for trainer: {}",
-                transactionId, request.getTrainerUsername());
+                transactionId, request.trainerUsername());
 
         return ResponseEntity.ok().build();
     }
