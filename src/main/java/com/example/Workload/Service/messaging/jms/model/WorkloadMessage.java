@@ -16,7 +16,7 @@ import java.time.LocalDate;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class WorkloadMessage implements Serializable {
+public class WorkloadMessage implements Serializable, WorkloadData {
     private static final long serialVersionUID = 1L;
 
     private String trainerUsername;
