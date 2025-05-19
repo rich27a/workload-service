@@ -30,6 +30,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
+        String requestPath = request.getServletPath();
+        if (requestPath.contains("/v3/api-docs") ||
+                requestPath.contains("/swagger-ui") ||
+                requestPath.contains("/swagger-ui.html")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         final String requestTokenHeader = request.getHeader("Authorization");
 
         String username = null;
