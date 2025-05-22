@@ -3,7 +3,9 @@ package com.example.Workload.Service.service;
 import com.example.Workload.Service.advice.TrainerNotFoundException;
 import com.example.Workload.Service.messaging.jms.model.WorkloadMessage;
 import com.example.Workload.Service.models.*;
+import com.example.Workload.Service.models.documents.TrainerSummary;
 import com.example.Workload.Service.repositories.TrainerWorkloadRepository;
+import com.example.Workload.Service.repositories.mongo.TrainerSummaryRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,11 +17,17 @@ import java.util.Map;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 @Transactional
 public class WorkloadService {
 
     private final TrainerWorkloadRepository workloadRepository;
+    private final TrainerSummaryRepository trainerSummaryRepository;
+
+    public WorkloadService(TrainerWorkloadRepository workloadRepository, TrainerSummaryRepository trainerSummaryRepository) {
+        this.workloadRepository = workloadRepository;
+        this.trainerSummaryRepository = trainerSummaryRepository;
+    }
+
     private final Map<ActionType, WorkloadActionHandler> actionHandlers = Map.of(
             ActionType.ADD, this::handleAddAction,
             ActionType.DELETE, this::handleDeleteAction
@@ -81,6 +89,20 @@ public class WorkloadService {
                     log.debug("Creating new workload record for trainer: {}",
                             request.getTrainerUsername());
                     return newWorkload;
+                });
+    }
+
+    private TrainerSummary getOrCreateTrainerSummary(WorkloadData workloadData, String transactionId) {
+        return trainerSummaryRepository.findByTrainerUsername(workloadData.getTrainerUsername())
+                .orElseGet(() -> {
+                    log.debug("[Transaction: {}] Creating new trainer summary for: {}",
+                            transactionId, workloadData.getTrainerUsername());
+                    TrainerSummary newSummary = new TrainerSummary();
+                    newSummary.setTrainerUsername(workloadData.getTrainerUsername());
+                    newSummary.setTrainerFirstName(workloadData.getTrainerFirstName());
+                    newSummary.setTrainerLastName(workloadData.getTrainerLastName());
+                    newSummary.setTrainerStatus(workloadData.isActive());
+                    return newSummary;
                 });
     }
 }
