@@ -4,11 +4,11 @@ server:
 spring:
   application:
     name: workload-service
-  datasource:
-    url: jdbc:h2:mem:workloaddb
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: workload
   h2:
     console:
       enabled: true
