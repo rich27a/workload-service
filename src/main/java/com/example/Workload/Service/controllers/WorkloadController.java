@@ -3,6 +3,7 @@ package com.example.Workload.Service.controllers;
 
 import com.example.Workload.Service.models.WorkloadRequest;
 import com.example.Workload.Service.models.WorkloadSummary;
+import com.example.Workload.Service.models.documents.TrainerSummary;
 import com.example.Workload.Service.service.WorkloadService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -105,7 +106,7 @@ public class WorkloadController {
             )
     })
     @GetMapping("/{username}/{year}/{month}")
-    public ResponseEntity<WorkloadSummary> getWorkloadSummary(
+    public ResponseEntity<TrainerSummary> getWorkloadSummary(
             @PathVariable String username,
             @PathVariable int year,
             @PathVariable int month,
@@ -118,7 +119,7 @@ public class WorkloadController {
         log.info("[Transaction: {}] Received request for workload summary: trainer={}, year={}, month={}",
                 transactionId, username, year, month);
 
-        WorkloadSummary summary = workloadService.getWorkloadSummary(username, YearMonth.of(year, month), transactionId);
+        TrainerSummary summary = workloadService.getWorkloadSummary(username, YearMonth.of(year, month), transactionId);
 
         log.info("[Transaction: {}] Returning workload summary for trainer: {}",
                 transactionId, username);
