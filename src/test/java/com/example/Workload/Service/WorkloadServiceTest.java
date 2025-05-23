@@ -63,7 +63,7 @@ class WorkloadServiceTest {
                 .thenReturn(Optional.empty());
         when(trainerSummaryRepository.save(any(TrainerSummary.class)))
                 .thenReturn(trainerSummary);
-        
+
         workloadService.processWorkload(workloadRequest, transactionId);
 
         verify(trainerSummaryRepository).findByTrainerUsername("john.doe");
