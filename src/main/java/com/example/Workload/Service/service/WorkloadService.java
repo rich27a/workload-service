@@ -19,79 +19,64 @@ import java.util.Map;
 @Slf4j
 @Transactional
 public class WorkloadService {
-
-    private final TrainerWorkloadRepository workloadRepository;
     private final TrainerSummaryRepository trainerSummaryRepository;
-
-    public WorkloadService(TrainerWorkloadRepository workloadRepository, TrainerSummaryRepository trainerSummaryRepository) {
-        this.workloadRepository = workloadRepository;
+    public WorkloadService(TrainerSummaryRepository trainerSummaryRepository) {
         this.trainerSummaryRepository = trainerSummaryRepository;
     }
 
-    private final Map<ActionType, WorkloadActionHandler> actionHandlers = Map.of(
-            ActionType.ADD, this::handleAddAction,
-            ActionType.DELETE, this::handleDeleteAction
+    private final Map<ActionType, WorkloadActionProcessor> actionProcessors = Map.of(
+            ActionType.ADD, this::addTrainingDuration,
+            ActionType.DELETE, this::removeTrainingDuration
     );
-
+    @Transactional
     public void processWorkload(WorkloadData request, String transactionId) {
         log.info("[{}] Processing workload for trainer: {}",
                 transactionId, request.getTrainerUsername());
-
-        TrainerWorkload trainerWorkload = getOrCreateWorkload(request);
-        YearMonth yearMonth = YearMonth.from(request.getTrainingDate());
-
-        actionHandlers.get(request.getActionType())
-                .handle(request, trainerWorkload, yearMonth);
-
-        workloadRepository.save(trainerWorkload);
+        int year = request.getTrainingDate().getYear();
+        int month = request.getTrainingDate().getMonthValue();
+        log.debug("[Transaction: {}] Training date: year={}, month={}",
+                transactionId, year, month);
+        TrainerSummary trainerSummary = getOrCreateTrainerSummary(request, transactionId);
+        actionProcessors.get(request.getActionType())
+                .process(trainerSummary, year, month, request.getTrainingDuration(), transactionId);
+        trainerSummaryRepository.save(trainerSummary);
         log.info("[{}] Workload saved for trainer: {}",
                 transactionId, request.getTrainerUsername());
     }
+    private void addTrainingDuration(TrainerSummary trainerSummary, int year, int month,
+                                     int duration, String transactionId) {
+        log.debug("[Transaction: {}] Adding {} hours to trainer: {} for {}-{}",
+                transactionId, duration, trainerSummary.getTrainerUsername(), year, month);
 
-    private void handleAddAction(WorkloadData request,
-                                 TrainerWorkload workload,
-                                 YearMonth yearMonth) {
-        workload.addHours(yearMonth, request.getTrainingDuration());
+        TrainerSummary.YearSummary yearSummary = trainerSummary.getOrCreateYearSummary(year);
+        TrainerSummary.MonthSummary monthSummary = yearSummary.getOrCreateMonthSummary(month);
+
+        int currentDuration = monthSummary.getTrainingsSummaryDuration() != null ?
+                monthSummary.getTrainingsSummaryDuration().intValue() : 0;
+        monthSummary.setTrainingsSummaryDuration(currentDuration + duration);
     }
+    private void removeTrainingDuration(TrainerSummary trainerSummary, int year, int month,
+                                        int duration, String transactionId) {
+        log.debug("[Transaction: {}] Removing {} hours from trainer: {} for {}-{}",
+                transactionId, duration, trainerSummary.getTrainerUsername(), year, month);
 
-    private void handleDeleteAction(WorkloadData request,
-                                    TrainerWorkload workload,
-                                    YearMonth yearMonth) {
-        workload.removeHours(yearMonth, request.getTrainingDuration());
+        TrainerSummary.YearSummary yearSummary = trainerSummary.getOrCreateYearSummary(year);
+        TrainerSummary.MonthSummary monthSummary = yearSummary.getOrCreateMonthSummary(month);
+
+        int currentDuration = monthSummary.getTrainingsSummaryDuration() != null ?
+                monthSummary.getTrainingsSummaryDuration().intValue() : 0;
+        int newDuration = Math.max(0, currentDuration - duration);
+        monthSummary.setTrainingsSummaryDuration(newDuration);
     }
-
     @Transactional
-    public WorkloadSummary getWorkloadSummary(String username,
+    public TrainerSummary getWorkloadSummary(String username,
                                               YearMonth yearMonth,
                                               String transactionId) {
         log.info("[{}] Getting summary for {} in {}",
                 transactionId, username, yearMonth);
-
-        return workloadRepository.findById(username)
-                .map(w -> new WorkloadSummary(
-                        w.getTrainerUsername(),
-                        yearMonth.getYear(),
-                        yearMonth.getMonthValue(),
-                        w.getHours(yearMonth)))
+        return trainerSummaryRepository.findById(username)
                 .orElseThrow(() -> new TrainerNotFoundException(username));
     }
-
-    private TrainerWorkload getOrCreateWorkload(WorkloadData request) {
-        return workloadRepository.findById(request.getTrainerUsername())
-                .orElseGet(() -> {
-                    TrainerWorkload newWorkload = new TrainerWorkload();
-                    newWorkload.setTrainerUsername(request.getTrainerUsername());
-                    newWorkload.setTrainerFirstName(request.getTrainerFirstName());
-                    newWorkload.setTrainerLastName(request.getTrainerLastName());
-                    newWorkload.setTrainerStatus(request.isActive());
-                    newWorkload.setWorkloadHours(new HashMap<>());
-
-                    log.debug("Creating new workload record for trainer: {}",
-                            request.getTrainerUsername());
-                    return newWorkload;
-                });
-    }
-
     private TrainerSummary getOrCreateTrainerSummary(WorkloadData workloadData, String transactionId) {
         return trainerSummaryRepository.findByTrainerUsername(workloadData.getTrainerUsername())
                 .orElseGet(() -> {
@@ -105,4 +90,5 @@ public class WorkloadService {
                     return newSummary;
                 });
     }
+
 }
