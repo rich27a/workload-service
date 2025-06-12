@@ -3,7 +3,9 @@ package com.example.Workload.Service.service;
 import com.example.Workload.Service.advice.TrainerNotFoundException;
 import com.example.Workload.Service.messaging.jms.model.WorkloadMessage;
 import com.example.Workload.Service.models.*;
+import com.example.Workload.Service.models.documents.TrainerSummary;
 import com.example.Workload.Service.repositories.TrainerWorkloadRepository;
+import com.example.Workload.Service.repositories.mongo.TrainerSummaryRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,72 +17,78 @@ import java.util.Map;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 @Transactional
 public class WorkloadService {
+    private final TrainerSummaryRepository trainerSummaryRepository;
+    public WorkloadService(TrainerSummaryRepository trainerSummaryRepository) {
+        this.trainerSummaryRepository = trainerSummaryRepository;
+    }
 
-    private final TrainerWorkloadRepository workloadRepository;
-    private final Map<ActionType, WorkloadActionHandler> actionHandlers = Map.of(
-            ActionType.ADD, this::handleAddAction,
-            ActionType.DELETE, this::handleDeleteAction
+    private final Map<ActionType, WorkloadActionProcessor> actionProcessors = Map.of(
+            ActionType.ADD, this::addTrainingDuration,
+            ActionType.DELETE, this::removeTrainingDuration
     );
-
+    @Transactional
     public void processWorkload(WorkloadData request, String transactionId) {
         log.info("[{}] Processing workload for trainer: {}",
                 transactionId, request.getTrainerUsername());
-
-        TrainerWorkload trainerWorkload = getOrCreateWorkload(request);
-        YearMonth yearMonth = YearMonth.from(request.getTrainingDate());
-
-        actionHandlers.get(request.getActionType())
-                .handle(request, trainerWorkload, yearMonth);
-
-        workloadRepository.save(trainerWorkload);
+        int year = request.getTrainingDate().getYear();
+        int month = request.getTrainingDate().getMonthValue();
+        log.debug("[Transaction: {}] Training date: year={}, month={}",
+                transactionId, year, month);
+        TrainerSummary trainerSummary = getOrCreateTrainerSummary(request, transactionId);
+        actionProcessors.get(request.getActionType())
+                .process(trainerSummary, year, month, request.getTrainingDuration(), transactionId);
+        trainerSummaryRepository.save(trainerSummary);
         log.info("[{}] Workload saved for trainer: {}",
                 transactionId, request.getTrainerUsername());
     }
+    private void addTrainingDuration(TrainerSummary trainerSummary, int year, int month,
+                                     int duration, String transactionId) {
+        log.debug("[Transaction: {}] Adding {} hours to trainer: {} for {}-{}",
+                transactionId, duration, trainerSummary.getTrainerUsername(), year, month);
 
-    private void handleAddAction(WorkloadData request,
-                                 TrainerWorkload workload,
-                                 YearMonth yearMonth) {
-        workload.addHours(yearMonth, request.getTrainingDuration());
+        TrainerSummary.YearSummary yearSummary = trainerSummary.getOrCreateYearSummary(year);
+        TrainerSummary.MonthSummary monthSummary = yearSummary.getOrCreateMonthSummary(month);
+
+        int currentDuration = monthSummary.getTrainingsSummaryDuration() != null ?
+                monthSummary.getTrainingsSummaryDuration().intValue() : 0;
+        monthSummary.setTrainingsSummaryDuration(currentDuration + duration);
     }
+    private void removeTrainingDuration(TrainerSummary trainerSummary, int year, int month,
+                                        int duration, String transactionId) {
+        log.debug("[Transaction: {}] Removing {} hours from trainer: {} for {}-{}",
+                transactionId, duration, trainerSummary.getTrainerUsername(), year, month);
 
-    private void handleDeleteAction(WorkloadData request,
-                                    TrainerWorkload workload,
-                                    YearMonth yearMonth) {
-        workload.removeHours(yearMonth, request.getTrainingDuration());
+        TrainerSummary.YearSummary yearSummary = trainerSummary.getOrCreateYearSummary(year);
+        TrainerSummary.MonthSummary monthSummary = yearSummary.getOrCreateMonthSummary(month);
+
+        int currentDuration = monthSummary.getTrainingsSummaryDuration() != null ?
+                monthSummary.getTrainingsSummaryDuration().intValue() : 0;
+        int newDuration = Math.max(0, currentDuration - duration);
+        monthSummary.setTrainingsSummaryDuration(newDuration);
     }
-
     @Transactional
-    public WorkloadSummary getWorkloadSummary(String username,
+    public TrainerSummary getWorkloadSummary(String username,
                                               YearMonth yearMonth,
                                               String transactionId) {
         log.info("[{}] Getting summary for {} in {}",
                 transactionId, username, yearMonth);
-
-        return workloadRepository.findById(username)
-                .map(w -> new WorkloadSummary(
-                        w.getTrainerUsername(),
-                        yearMonth.getYear(),
-                        yearMonth.getMonthValue(),
-                        w.getHours(yearMonth)))
+        return trainerSummaryRepository.findById(username)
                 .orElseThrow(() -> new TrainerNotFoundException(username));
     }
-
-    private TrainerWorkload getOrCreateWorkload(WorkloadData request) {
-        return workloadRepository.findById(request.getTrainerUsername())
+    private TrainerSummary getOrCreateTrainerSummary(WorkloadData workloadData, String transactionId) {
+        return trainerSummaryRepository.findByTrainerUsername(workloadData.getTrainerUsername())
                 .orElseGet(() -> {
-                    TrainerWorkload newWorkload = new TrainerWorkload();
-                    newWorkload.setTrainerUsername(request.getTrainerUsername());
-                    newWorkload.setTrainerFirstName(request.getTrainerFirstName());
-                    newWorkload.setTrainerLastName(request.getTrainerLastName());
-                    newWorkload.setTrainerStatus(request.isActive());
-                    newWorkload.setWorkloadHours(new HashMap<>());
-
-                    log.debug("Creating new workload record for trainer: {}",
-                            request.getTrainerUsername());
-                    return newWorkload;
+                    log.debug("[Transaction: {}] Creating new trainer summary for: {}",
+                            transactionId, workloadData.getTrainerUsername());
+                    TrainerSummary newSummary = new TrainerSummary();
+                    newSummary.setTrainerUsername(workloadData.getTrainerUsername());
+                    newSummary.setTrainerFirstName(workloadData.getTrainerFirstName());
+                    newSummary.setTrainerLastName(workloadData.getTrainerLastName());
+                    newSummary.setTrainerStatus(workloadData.isActive());
+                    return newSummary;
                 });
     }
+
 }

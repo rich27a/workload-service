@@ -5,6 +5,7 @@ import com.example.Workload.Service.messaging.jms.model.WorkloadMessage;
 import com.example.Workload.Service.service.WorkloadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
@@ -15,10 +16,12 @@ public class WorkloadConsumer {
 
     private final WorkloadService workloadService;
 
+
     public WorkloadConsumer(WorkloadService workloadService) {
         this.workloadService = workloadService;
     }
-    @JmsListener(destination = JmsConstants.WORKLOAD_QUEUE)
+
+    @JmsListener(destination = "${workload-service.activemq.workload.queue}")
     public void receiveWorkloadMessage(WorkloadMessage message,
                                        @Header(JmsConstants.TRANSACTION_ID_PROPERTY) String transactionId) {
         log.info("[Transaction: {}] Received workload message for trainer: {} with action: {}",
