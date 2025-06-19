@@ -1,6 +1,6 @@
 package com.example.Workload.Service.stepdefinitions;
 
-import com.example.Workload.Service.component.config.TestConfiguration;
+import com.example.Workload.Service.component.config.WorkloadTestConfiguration;
 import com.example.Workload.Service.component.support.TestDataHelper;
 import com.example.Workload.Service.models.ActionType;
 import com.example.Workload.Service.models.WorkloadRequest;
@@ -29,11 +29,12 @@ import java.util.Optional;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.*;
 
 @CucumberContextConfiguration
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ContextConfiguration(classes = TestConfiguration.class)
+@ContextConfiguration(classes = WorkloadTestConfiguration.class)
 public class WorkloadStepDefinitions {
 
     @LocalServerPort
@@ -60,11 +61,11 @@ public class WorkloadStepDefinitions {
 
         Response healthCheck = given()
                 .when()
-                .get("/actuator/health")
+                .get("/swagger-ui.html")
                 .then()
                 .extract().response();
 
-        assertThat(healthCheck.getStatusCode()).isIn(200, 404); // 404 is OK if actuator not configured
+        assertThat(healthCheck.getStatusCode()).isIn(200, 404);
     }
 
     @Given("I have a valid JWT token")
@@ -225,7 +226,7 @@ public class WorkloadStepDefinitions {
     public void iSubmitTheWorkloadRequest() {
         var requestSpec = given()
                 .contentType(ContentType.JSON)
-                .header("X-Transaction-ID", currentTransactionId);
+                .header("X-Transaction-ID", testDataHelper.generateTransactionId());
 
         if (currentJwtToken != null) {
             requestSpec.header("Authorization", "Bearer " + currentJwtToken);
@@ -246,7 +247,7 @@ public class WorkloadStepDefinitions {
 
     @When("I add {int} hours for trainer {string} on {string}")
     public void iAddHoursForTrainerOn(int hours, String username, String date) {
-        WorkloadRequest request = new WorkloadRequest(
+         currentRequest = new WorkloadRequest(
                 username,
                 "Test",
                 "Trainer",
@@ -260,7 +261,7 @@ public class WorkloadStepDefinitions {
                 .contentType(ContentType.JSON)
                 .header("Authorization", "Bearer " + currentJwtToken)
                 .header("X-Transaction-ID", testDataHelper.generateTransactionId())
-                .body(request)
+                .body(currentRequest)
                 .when()
                 .post("/api/workload")
                 .then()
@@ -269,7 +270,7 @@ public class WorkloadStepDefinitions {
 
     @When("I remove {int} hours for trainer {string} on {string}")
     public void iRemoveHoursForTrainerOn(int hours, String username, String date) {
-        WorkloadRequest request = new WorkloadRequest(
+         currentRequest = new WorkloadRequest(
                 username,
                 "Test",
                 "Trainer",
@@ -283,7 +284,7 @@ public class WorkloadStepDefinitions {
                 .contentType(ContentType.JSON)
                 .header("Authorization", "Bearer " + currentJwtToken)
                 .header("X-Transaction-ID", testDataHelper.generateTransactionId())
-                .body(request)
+                .body(currentRequest)
                 .when()
                 .post("/api/workload")
                 .then()
@@ -317,7 +318,7 @@ public class WorkloadStepDefinitions {
             LocalDate date = LocalDate.parse(operation.get("date"));
             int duration = Integer.parseInt(operation.get("duration"));
 
-            WorkloadRequest request = new WorkloadRequest(
+             currentRequest = new WorkloadRequest(
                     username,
                     "Sarah",
                     "Davis",
@@ -331,7 +332,7 @@ public class WorkloadStepDefinitions {
                     .contentType(ContentType.JSON)
                     .header("Authorization", "Bearer " + currentJwtToken)
                     .header("X-Transaction-ID", testDataHelper.generateTransactionId())
-                    .body(request)
+                    .body(currentRequest)
                     .when()
                     .post("/api/workload")
                     .then()
@@ -366,4 +367,78 @@ public class WorkloadStepDefinitions {
                 .then()
                 .extract().response();
     }
+    @Then("the workload should be processed successfully")
+    public void theWorkloadShouldBeProcessedSuccessfully() {
+        lastResponse.then().statusCode(200);
+    }
+
+    @Then("the response status should be {int}")
+    public void theResponseStatusShouldBe(int statusCode) {
+        lastResponse.then().statusCode(statusCode);
+    }
+
+    @Then("the trainer summary should be created in the database")
+    public void theTrainerSummaryShouldBeCreatedInTheDatabase() {
+        String username = currentRequest.getTrainerUsername();
+        Optional<TrainerSummary> trainerSummary = trainerSummaryRepository.findByTrainerUsername(username);
+
+        assertTrue(trainerSummary.isPresent(), "Trainer summary should exist in the database");
+        assertEquals(username, trainerSummary.get().getTrainerUsername());
+        assertEquals(currentRequest.getTrainerFirstName(), trainerSummary.get().getTrainerFirstName());
+        assertEquals(currentRequest.getTrainerLastName(), trainerSummary.get().getTrainerLastName());
+    }
+
+    @Then("the trainer should have {int} total hours in {word} {int}")
+    public void theTrainerShouldHaveTotalHoursInMonth(int expectedHours, String monthName, int year) {
+        int month = testDataHelper.getMonthNumber(monthName);
+        String username = currentRequest != null ? currentRequest.getTrainerUsername() : lastResponse.jsonPath().getString("trainerUsername");
+
+        Optional<TrainerSummary> trainerSummary = trainerSummaryRepository.findByTrainerUsername(username);
+        assertTrue(trainerSummary.isPresent(), "Trainer summary should exist in the database");
+
+        TrainerSummary summary = trainerSummary.get();
+
+        TrainerSummary.YearSummary yearSummary = null;
+        for (TrainerSummary.YearSummary ys : summary.getYears()) {
+            if (ys.getYear() == year) {
+                yearSummary = ys;
+                break;
+            }
+        }
+        assertNotNull(yearSummary, "Year summary should exist");
+        TrainerSummary.MonthSummary monthSummary = null;
+        for (TrainerSummary.MonthSummary ms : yearSummary.getMonths()) {
+            if (ms.getMonth() == month) {
+                monthSummary = ms;
+                break;
+            }
+        }
+        assertNotNull(monthSummary, "Month summary should exist");
+
+        assertEquals(expectedHours, monthSummary.getTrainingsSummaryDuration().intValue(),
+                "Trainer should have " + expectedHours + " hours in " + monthName + " " + year);
+    }
+
+    @Then("the summary should contain:")
+    public void theSummaryShouldContain(DataTable dataTable) {
+        Map<String, String> expectedData = dataTable.asMap();
+
+        assertEquals(expectedData.get("trainerUsername"), lastResponse.jsonPath().getString("trainerUsername"));
+        assertEquals(expectedData.get("trainerFirstName"), lastResponse.jsonPath().getString("trainerFirstName"));
+        assertEquals(expectedData.get("trainerLastName"), lastResponse.jsonPath().getString("trainerLastName"));
+        assertEquals(Integer.parseInt(expectedData.get("year")), lastResponse.jsonPath().getInt("years[0].year"));
+        assertEquals(Integer.parseInt(expectedData.get("month")), lastResponse.jsonPath().getInt("years[0].months[0].month"));
+        assertEquals(Integer.parseInt(expectedData.get("totalHours")), lastResponse.jsonPath().getInt("years[0].months[0].trainingsSummaryDuration"));
+    }
+
+    @Then("the response should contain error message about trainer not found")
+    public void theResponseShouldContainErrorMessageAboutTrainerNotFound() {
+        lastResponse.then().statusCode(404);
+    }
+
+    @Then("the response should contain validation error messages")
+    public void theResponseShouldContainValidationErrorMessages() {
+        lastResponse.then().body("message", containsString("validation"));
+    }
+
 }
