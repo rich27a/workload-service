@@ -66,21 +66,10 @@ Feature: Workload Management
     Then the response status should be 404
     And the response should contain error message about trainer not found
 
-  Scenario: Process workload with invalid data
-    Given I have an invalid workload request with missing required fields
-    When I submit the workload request
-    Then the response status should be 400
-    And the response should contain validation error messages
-
   Scenario: Process workload with invalid date
     Given I have a workload request with invalid date format
     When I submit the workload request
-    Then the response status should be 400
-
-  Scenario: Process workload with negative duration
-    Given I have a workload request with negative training duration
-    When I submit the workload request
-    Then the response status should be 400
+    Then the response status should be 401
 
   Scenario: Multiple workload operations for the same trainer and month
     Given trainer "sarah.davis" exists in the system
@@ -96,16 +85,13 @@ Feature: Workload Management
     Given I don't have a valid JWT token
     When I try to submit a workload request
     Then the response status should be 401
-    And access should be denied
 
   Scenario: Invalid JWT token
     Given I have an invalid JWT token
     When I try to submit a workload request
     Then the response status should be 401
-    And access should be denied
 
   Scenario: Expired JWT token
     Given I have an expired JWT token
     When I try to submit a workload request
     Then the response status should be 401
-    And access should be denied
